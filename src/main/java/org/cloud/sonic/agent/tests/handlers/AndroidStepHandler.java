@@ -70,7 +70,10 @@ import org.openqa.selenium.chrome.ChromeOptions;
 import org.springframework.util.CollectionUtils;
 
 import javax.imageio.stream.FileImageOutputStream;
+import java.io.BufferedReader;
 import java.io.File;
+import java.io.IOException;
+import java.io.InputStreamReader;
 import java.util.*;
 import java.util.concurrent.Future;
 
@@ -99,6 +102,7 @@ public class AndroidStepHandler {
     private static final int ANDROID_ELEMENT_TYPE = 1001;
     private static final int WEB_ELEMENT_TYPE = 1002;
     private static final int POCO_ELEMENT_TYPE = 1003;
+
 
     // 屏幕的宽度与高度信息
     private int screenWidth = 0;
@@ -1287,6 +1291,15 @@ public class AndroidStepHandler {
     }
 
     public void runMonkey(HandleContext handleContext, JSONObject content, List<JSONObject> text) {
+
+//        Future<?> networkListener = AndroidDeviceThreadPool.cachedThreadPool.submit(() -> {
+//            String s = AndroidDeviceBridgeTool.executeCommand(iDevice, "CLASSPATH=/sdcard/monkeyq.jar:/sdcard/framework.jar:/sdcard/fastbot-thirdpart.jar  exec app_process /system/bin com.android.commands.monkey.Monkey -p  pro.bingbon.app --agent reuseq  --running-minutes   2   --throttle 800 -v -v -v --output-directory /sdcard/fastboot --bugreport ");
+//            handleContext.setDetail(s);
+//            System.out.println(s
+//            );
+//                }
+//        );
+//    }
         handleContext.setStepDes("运行随机事件测试完毕");
         handleContext.setDetail("");
         String packageName = content.getString("packageName");
@@ -2652,5 +2665,47 @@ public class AndroidStepHandler {
         } else if (!"IGNORE".equals(stepDes)) {
             log.sendStepLog(StepType.PASS, stepDes, detail);
         }
+    }
+
+    public void runFastboot() {
+        log.sendStepLog(StepType.INFO, "开始执行fastboot操作", "");
+
+        // 获取uuid
+        String serialNumber = iDevice.getSerialNumber();
+
+
+        String command = "adb  -s  " + serialNumber + " shell    CLASSPATH=/sdcard/monkeyq.jar:/sdcard/framework.jar:/sdcard/fastbot-thirdpart.jar  exec app_process /system/bin com.android.commands.monkey.Monkey -p  pro.bingbon.app --agent reuseq  --running-minutes   2   --throttle 800 -v -v -v --output-directory /sdcard/fastboot --bugreport ";
+        try {
+            Process process = Runtime.getRuntime().exec(command);
+            LarkMessageSender larkMessageSender = new LarkMessageSender();
+//            larkMessageSender.sendMessage("fastboot执行完成");
+            // 处理process的输入流、错误流和等待进程结束等操作...
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
+//        log.sendStepLog(StepType.INFO, "执行命令：" + command, "");
+//
+//        Process process = null;
+//        StringBuilder output = new StringBuilder();
+//        ProcessBuilder pb = new ProcessBuilder("/bin/bash", "-c", command);
+//        pb.redirectErrorStream(true);
+//
+//
+//        try (BufferedReader reader = new BufferedReader(new InputStreamReader(process.getInputStream()))) {
+//            try {
+//                process = pb.start();
+//                String line;
+//                while ((line = reader.readLine()) != null) {
+//                    output.append(line).append(System.lineSeparator());
+//                    // 记录输出到日志
+//                    log.sendStepLog(StepType.INFO, line, "");
+//                }
+//            } catch (IOException e) {
+//                throw new RuntimeException(e);
+//            }
+//
+//        } catch (IOException e) {
+//            throw new RuntimeException(e);
+//        }
     }
 }

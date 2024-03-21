@@ -61,7 +61,10 @@ import org.jsoup.nodes.Document;
 import org.springframework.util.CollectionUtils;
 
 import javax.imageio.stream.FileImageOutputStream;
+import java.io.BufferedReader;
 import java.io.File;
+import java.io.IOException;
+import java.io.InputStreamReader;
 import java.nio.charset.StandardCharsets;
 import java.util.*;
 import java.util.concurrent.Future;
@@ -1027,6 +1030,17 @@ public class IOSStepHandler {
     }
 
     public void runMonkey(HandleContext handleContext, JSONObject content, List<JSONObject> text) {
+        Process process;
+        StringBuilder output = new StringBuilder();
+        ProcessBuilder pb = new ProcessBuilder("/bin/bash", "-c", "BUNDLEID=pro.bingbon.trade duration=4 throttle=300 xcodebuild test  -workspace /Users/admin/Desktop/note/Fastbot_iOS/Fastbot-iOS/Fastbot-iOS.xcworkspace -scheme FastbotRunner  -configuration Release  -destination 'platform=iOS,id=00008030-001E64693EE8C02E' -only-testing:FastbotRunner/FastbotRunner/testFastbot ");
+        pb.redirectErrorStream(true);
+        try {
+            process = pb.start();
+        } catch (IOException e) {
+            throw new RuntimeException(e);
+        }
+
+
         handleContext.setStepDes("运行随机事件测试完毕");
         handleContext.setDetail("");
         String packageName = content.getString("packageName");
@@ -1980,5 +1994,48 @@ public class IOSStepHandler {
         } else if (!"IGNORE".equals(stepDes)) {
             log.sendStepLog(StepType.PASS, stepDes, detail);
         }
+    }
+
+    public void runFastboot(){
+        if (udId != null) {
+            Process process;
+            String command = "BUNDLEID=pro.bingbon.finance  duration=3 throttle=300 xcodebuild test  -workspace /Users/admin/Desktop/note/Fastbot_iOS/Fastbot-iOS/Fastbot-iOS.xcworkspace -scheme FastbotRunner  -configuration Release  -destination 'platform=iOS,id=00008101-001830300C20001E' -only-testing:FastbotRunner/FastbotRunner/testFastbot";
+
+//        String command = "tidevice -u  00008101-001830300C20001E  xctest -B pro.bingbon.trade.xctrunner -e BUNDLEID:pro.bingbon.finance -e duration:4 -e throttle:300 --debug";
+
+            try {
+                // 创建ProcessBuilder实例，并重定向错误输出流到标准输出流
+                ProcessBuilder pb = new ProcessBuilder("/bin/bash", "-c", command);
+                pb.redirectErrorStream(true);
+
+                // 启动进程
+                process = pb.start();
+
+                try (BufferedReader reader = new BufferedReader(new InputStreamReader(process.getInputStream()))) {
+                    String line;
+                    while ((line = reader.readLine()) != null) {
+                        // 记录输出到日志
+                        System.out.println(line);
+                    }
+
+                    int exitCode = process.waitFor(); // 等待命令执行完成
+                    if (exitCode == 0) {
+
+                        System.out.println("执行完成");
+                    } else {
+                        System.out.println("执行失败");
+                    }
+
+                } catch (IOException e) {
+                    e.printStackTrace();
+                }
+
+            } catch (IOException | InterruptedException e) {
+                e.printStackTrace();
+            }
+        }
+
+
+
     }
 }
