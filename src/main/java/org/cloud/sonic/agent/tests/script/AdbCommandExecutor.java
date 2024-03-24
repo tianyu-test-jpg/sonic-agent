@@ -5,11 +5,9 @@ package org.cloud.sonic.agent.tests.script;
  * @Date: 2024/03/20/21:32
  * @Description:
  */
-import org.cloud.sonic.agent.tests.handlers.LarkMessageSender;
 
 import java.io.BufferedReader;
 import java.io.IOException;
-import java.io.InputStream;
 import java.io.InputStreamReader;
 
 public class AdbCommandExecutor {

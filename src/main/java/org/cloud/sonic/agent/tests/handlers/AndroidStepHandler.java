@@ -21,8 +21,12 @@ import com.alibaba.fastjson.JSON;
 import com.alibaba.fastjson.JSONArray;
 import com.alibaba.fastjson.JSONObject;
 import com.android.ddmlib.IDevice;
+import org.apache.commons.lang3.StringEscapeUtils;
+import com.google.gson.JsonArray;
+import com.google.gson.JsonObject;
 import org.cloud.sonic.agent.bridge.android.AndroidDeviceBridgeTool;
 import org.cloud.sonic.agent.bridge.android.AndroidDeviceThreadPool;
+import org.cloud.sonic.agent.bridge.ios.SibTool;
 import org.cloud.sonic.agent.common.enums.AndroidKey;
 import org.cloud.sonic.agent.common.enums.ConditionEnum;
 import org.cloud.sonic.agent.common.enums.SonicEnum;
@@ -2387,13 +2391,12 @@ public class AndroidStepHandler {
             try {
                 expect = TextHandler.replaceTrans(expect, globalParams);
                 AssertUtil assertUtil = new AssertUtil();
-                StringBuilder sbLog = new StringBuilder("真实值：");
-                sbLog.append(realValue);
-                sbLog.append("，期望 ");
-                sbLog.append(assertUtil.getAssertDesc(operation));
-                sbLog.append(" ");
-                sbLog.append(expect);
-                handleContext.setDetail(sbLog.toString());
+                String sbLog = "真实值：" + realValue +
+                        "，期望 " +
+                        assertUtil.getAssertDesc(operation) +
+                        " " +
+                        expect;
+                handleContext.setDetail(sbLog);
                 switch (operation) {
                     case "equal" -> assertEquals(realValue, expect);
                     case "notEqual" -> assertNotEquals(realValue, expect);
@@ -2667,45 +2670,71 @@ public class AndroidStepHandler {
         }
     }
 
-    public void runFastboot() {
-        log.sendStepLog(StepType.INFO, "开始执行fastboot操作", "");
+    public void runFastboot(String webhookUrl,
+                            String packageName,
+                            int runningMinutes,
+                            int throttleValue,
+                            String verbosityLevel) throws Exception {
 
-        // 获取uuid
+        FeishuBot larkMessageSender = new FeishuBot();
         String serialNumber = iDevice.getSerialNumber();
 
+        closeAndroidDriver();
+        String outputDirectory = "/sdcard/fastboot";
+        String fastbootCommand = "  CLASSPATH=/sdcard/monkeyq.jar:/sdcard/framework.jar:/sdcard/fastbot-thirdpart.jar  exec app_process /system/bin com.android.commands.monkey.Monkey -p  "+
+                packageName + "   --agent reuseq  --running-minutes   "+
+                runningMinutes + " --throttle  " +
+                throttleValue +" "+
+                verbosityLevel+ " --output-directory  " +
+                outputDirectory +
+                " --bugreport" ;
+        System.out.println("执行的fastboot 命令为--->"+fastbootCommand);
+        log.sendStepLog(StepType.INFO, "开始执行fastboot android====>", "");
+        AndroidDeviceBridgeTool.executeCommand(iDevice, fastbootCommand);
 
-        String command = "adb  -s  " + serialNumber + " shell    CLASSPATH=/sdcard/monkeyq.jar:/sdcard/framework.jar:/sdcard/fastbot-thirdpart.jar  exec app_process /system/bin com.android.commands.monkey.Monkey -p  pro.bingbon.app --agent reuseq  --running-minutes   2   --throttle 800 -v -v -v --output-directory /sdcard/fastboot --bugreport ";
-        try {
-            Process process = Runtime.getRuntime().exec(command);
-            LarkMessageSender larkMessageSender = new LarkMessageSender();
-//            larkMessageSender.sendMessage("fastboot执行完成");
-            // 处理process的输入流、错误流和等待进程结束等操作...
-        } catch (IOException e) {
-            e.printStackTrace();
+        int port = 0;
+        log.sendStepLog(StepType.INFO, "启动androidDriver", "");
+        port = AndroidDeviceBridgeTool.startUiaServer(iDevice);
+        startAndroidDriver(iDevice, port);
+
+        String crashLogPath = AndroidDeviceBridgeTool.executeCommand(iDevice, "find /sdcard/fastboot  -type f | grep 'crash.*\\.log$'");
+        String oomLogPath = AndroidDeviceBridgeTool.executeCommand(iDevice, "find /sdcard/fastboot  -type f | grep 'oom.*\\.log$'  ");
+
+        StringBuilder stringBuilder = new StringBuilder();
+        if (!crashLogPath.trim().isEmpty()){
+            String[] fileNames = crashLogPath.split("\n");
+            for (String fileName : fileNames) {
+                String fileContent = AndroidDeviceBridgeTool.executeCommand(iDevice, "  cat " + fileName);
+                stringBuilder.append(fileContent);
+            }
         }
-//        log.sendStepLog(StepType.INFO, "执行命令：" + command, "");
-//
-//        Process process = null;
-//        StringBuilder output = new StringBuilder();
-//        ProcessBuilder pb = new ProcessBuilder("/bin/bash", "-c", command);
-//        pb.redirectErrorStream(true);
-//
-//
-//        try (BufferedReader reader = new BufferedReader(new InputStreamReader(process.getInputStream()))) {
-//            try {
-//                process = pb.start();
-//                String line;
-//                while ((line = reader.readLine()) != null) {
-//                    output.append(line).append(System.lineSeparator());
-//                    // 记录输出到日志
-//                    log.sendStepLog(StepType.INFO, line, "");
-//                }
-//            } catch (IOException e) {
-//                throw new RuntimeException(e);
-//            }
-//
-//        } catch (IOException e) {
-//            throw new RuntimeException(e);
-//        }
+
+        if (!oomLogPath.trim().isEmpty()){
+            String[] fileNames = oomLogPath.split("\n");
+            for (String fileName : fileNames) {
+                String fileContent = AndroidDeviceBridgeTool.executeCommand(iDevice, "  cat " + fileName);
+                stringBuilder.append(fileContent);
+            }
+        }
+        String logContent = stringBuilder.toString();
+        System.out.println("logContent=========>"+logContent);
+        if(!logContent.isEmpty()){
+            log.sendStepLog(StepType.ERROR, "crash及oom日志", logContent);
+            larkMessageSender.sendFeishuMsg(webhookUrl,"fastboot Android稳定性测试执行完成",packageName,
+                    runningMinutes,
+                    iDevice.getProperty(IDevice.PROP_BUILD_VERSION),
+                    iDevice.getSerialNumber(),
+                    iDevice.getProperty(IDevice.PROP_DEVICE_MANUFACTURER),
+                    iDevice.getProperty(IDevice.PROP_DEVICE_MODEL),"此次运行异常，已产生CRASH或OOM，详情见测试报告");
+        }else {
+            larkMessageSender.sendFeishuMsg(webhookUrl,"fastboot Android稳定性测试执行完成",packageName,
+                    runningMinutes,
+                    iDevice.getProperty(IDevice.PROP_BUILD_VERSION),
+                    iDevice.getSerialNumber(),
+                    iDevice.getProperty(IDevice.PROP_DEVICE_MANUFACTURER),
+                    iDevice.getProperty(IDevice.PROP_DEVICE_MODEL),"此次运行正常，未产生CRASH或OOM。");
+        }
+
     }
+
 }

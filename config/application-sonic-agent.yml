@@ -1,7 +1,7 @@
 sonic:
   agent:
     # Replace with ipv4 of the agent machine | 替换为部署Agent机器的ipv4
-    host: 192.168.1.11
+    host: 192.168.1.7
     # Replace with the port of the agent service, which can be changed by yourself | 替换为Agent服务的端口，可以自行更改
     port: 7777
 #    d656d622-0bd8-4e33-94ac-219f98b4e1eb
@@ -13,7 +13,7 @@ sonic:
   server:
     # Change to SONIC_SERVER_HOST of server | 改成server的SONIC_SERVER_HOST
 #    host: sonic.houtai.io
-    host: 192.168.1.11
+    host: 192.168.1.7
     port: 3000
     # Change to SONIC_SERVER_PORT of server | 改成server的SONIC_SERVER_PORT
 #    port: 80
