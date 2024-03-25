@@ -1,0 +1,3 @@
+tidevice   -u 00008030-001E64693EE8C02E  xctest -B pro.bingbon.trade.xctrunner -e BUNDLEID:pro.bingx.tf3 -e duration:4 -e throttle:300  --debug
+
+BUNDLEID=pro.bingbon.app duration=5 throttle=300 xcodebuild test  -workspace Fastbot-iOS.xcworkspace -scheme FastbotRunner  -configuration Release  -destination 'platform=iOS,id=00008030-001E64693EE8C02E' -only-testing:FastbotRunner/FastbotRunner/testFastbot

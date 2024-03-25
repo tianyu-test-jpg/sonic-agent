@@ -2677,8 +2677,6 @@ public class AndroidStepHandler {
                             String verbosityLevel) throws Exception {
 
         FeishuBot larkMessageSender = new FeishuBot();
-        String serialNumber = iDevice.getSerialNumber();
-
         closeAndroidDriver();
         String outputDirectory = "/sdcard/fastboot";
         String fastbootCommand = "  CLASSPATH=/sdcard/monkeyq.jar:/sdcard/framework.jar:/sdcard/fastbot-thirdpart.jar  exec app_process /system/bin com.android.commands.monkey.Monkey -p  "+

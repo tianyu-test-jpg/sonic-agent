@@ -489,7 +489,7 @@ public class SibTool implements ApplicationListener<ContextRefreshedEvent> {
     }
 
     public static List<String> getAppList(String udId) {
-        return getAppList(udId, null).stream().map(e->e.getString("bundleId")).collect(Collectors.toList());
+        return getAppList(udId, null).stream().map(e -> e.getString("bundleId")).collect(Collectors.toList());
     }
 
     public static List<JSONObject> getAppList(String udId, Session session) {
@@ -1004,5 +1004,78 @@ public class SibTool implements ApplicationListener<ContextRefreshedEvent> {
         } catch (Exception e) {
             e.printStackTrace();
         }
+    }
+
+
+    public static void runFastbootIos(String fastbootBUNDLEID,
+                                      String BUNDLEID,
+                                      int runningMinutes,
+                                      int throttleValue) {
+        String commandLine = "%s  run xctest -b " + fastbootBUNDLEID + " -e  BUNDLEID=" + BUNDLEID + " -e duration=" + runningMinutes + "  -e throttle=" + throttleValue;
+        Process ps = null;
+        String system = System.getProperty("os.name").toLowerCase();
+        System.out.println("执行的命令为" + commandLine);
+        try {
+            if (system.contains("win")) {
+                ps = Runtime.getRuntime().exec(new String[]{"cmd", "/c", String.format(commandLine, sib)});
+            } else if (system.contains("linux") || system.contains("mac")) {
+                ps = Runtime.getRuntime().exec(new String[]{"sh", "-c", String.format(commandLine, sib)});
+            }
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+    }
+
+    public static JSONObject getIosDeviceInfo(String udId)  {
+        Process listenProcess = null;
+        String commandLine = "%s devices listen -d";
+        String system = System.getProperty("os.name").toLowerCase();
+        try {
+            if (system.contains("win")) {
+                listenProcess = Runtime.getRuntime().exec(new String[]{"cmd", "/c", String.format(commandLine, sib)});
+            } else if (system.contains("linux") || system.contains("mac")) {
+                listenProcess = Runtime.getRuntime().exec(new String[]{"sh", "-c", String.format(commandLine, sib)});
+            }
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+        InputStreamReader inputStreamReader = new InputStreamReader(listenProcess.getInputStream());
+        BufferedReader stdInput = new BufferedReader(inputStreamReader);
+        String s = null;
+        while (true) {
+            try {
+                if ((s = stdInput.readLine()) == null) break;
+            } catch (IOException e) {
+                logger.info(e.getMessage());
+                break;
+            }
+            JSONObject r = JSONObject.parseObject(s);
+            if (r.getString("status").equals("online") && r.getString("serialNumber").equals(udId)) {
+                return r;
+            } else if (r.getString("status").equals("offline")) {
+                System.out.println("离线"+r);
+            }
+            logger.info(s);
+        }
+
+
+
+        try {
+            stdInput.close();
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
+        try {
+            inputStreamReader.close();
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
+        return null;
+    }
+
+    public static void main(String[] args) {
+        String udId = "00008101-001830300C20001E";
+        Map<String, Object> deviceInfo = getIosDeviceInfo(udId);
+        System.out.println(deviceInfo);
     }
 }

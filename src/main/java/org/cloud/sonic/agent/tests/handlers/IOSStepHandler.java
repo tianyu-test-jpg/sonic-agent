@@ -61,14 +61,12 @@ import org.jsoup.nodes.Document;
 import org.springframework.util.CollectionUtils;
 
 import javax.imageio.stream.FileImageOutputStream;
-import java.io.BufferedReader;
-import java.io.File;
-import java.io.IOException;
-import java.io.InputStreamReader;
+import java.io.*;
 import java.nio.charset.StandardCharsets;
 import java.util.*;
 import java.util.concurrent.Future;
 
+import static org.cloud.sonic.agent.bridge.ios.SibTool.runFastbootIos;
 import static org.testng.Assert.*;
 
 /**
@@ -1030,17 +1028,6 @@ public class IOSStepHandler {
     }
 
     public void runMonkey(HandleContext handleContext, JSONObject content, List<JSONObject> text) {
-        Process process;
-        StringBuilder output = new StringBuilder();
-        ProcessBuilder pb = new ProcessBuilder("/bin/bash", "-c", "BUNDLEID=pro.bingbon.trade duration=4 throttle=300 xcodebuild test  -workspace /Users/admin/Desktop/note/Fastbot_iOS/Fastbot-iOS/Fastbot-iOS.xcworkspace -scheme FastbotRunner  -configuration Release  -destination 'platform=iOS,id=00008030-001E64693EE8C02E' -only-testing:FastbotRunner/FastbotRunner/testFastbot ");
-        pb.redirectErrorStream(true);
-        try {
-            process = pb.start();
-        } catch (IOException e) {
-            throw new RuntimeException(e);
-        }
-
-
         handleContext.setStepDes("运行随机事件测试完毕");
         handleContext.setDetail("");
         String packageName = content.getString("packageName");
@@ -1996,46 +1983,95 @@ public class IOSStepHandler {
         }
     }
 
-    public void runFastboot(){
-        if (udId != null) {
-            Process process;
-            String command = "BUNDLEID=pro.bingbon.finance  duration=3 throttle=300 xcodebuild test  -workspace /Users/admin/Desktop/note/Fastbot_iOS/Fastbot-iOS/Fastbot-iOS.xcworkspace -scheme FastbotRunner  -configuration Release  -destination 'platform=iOS,id=00008101-001830300C20001E' -only-testing:FastbotRunner/FastbotRunner/testFastbot";
+    /**
+     * 运行fastboot ios
+     * @param webhookUrl
+     * @param runningMinutes
+     * @param throttleValue
+     * @throws Exception
+     */
+    public void runFastboot(String webhookUrl,
+//                            String fastbootBUNDLEID,
+                            String BUNDLEID,
+                            int runningMinutes,
+                            int throttleValue,
+                            String workspacePath
+    ) throws Exception {
+        String udidNow = udId;
+        FeishuBot larkMessageSender = new FeishuBot();
+        //关闭wda
+        closeIOSDriver();
 
-//        String command = "tidevice -u  00008101-001830300C20001E  xctest -B pro.bingbon.trade.xctrunner -e BUNDLEID:pro.bingbon.finance -e duration:4 -e throttle:300 --debug";
+        // 拼接构建命令
+        String fastbootCommand = "BUNDLEID=" + BUNDLEID +
+                            "    duration="+runningMinutes+
+                            "    throttleValue="+throttleValue+
+                            "   xcodebuild test  -workspace  "+workspacePath+
+                            "   -scheme FastbotRunner  -configuration Release  -destination 'platform=iOS,id=" +udidNow+"'"+
+                            "   -only-testing:FastbotRunner/FastbotRunner/testFastbot ";
 
-            try {
-                // 创建ProcessBuilder实例，并重定向错误输出流到标准输出流
-                ProcessBuilder pb = new ProcessBuilder("/bin/bash", "-c", command);
-                pb.redirectErrorStream(true);
+        String fastbootCommandTidevice = "tidevice   -u " + udidNow+  "  xctest -B pro.bingbon.trade.xctrunner -e BUNDLEID:"+BUNDLEID+ " -e duration:"+runningMinutes+ " -e throttle:"+throttleValue+"  --debug";
+        System.out.println("执行的fastboot ios 命令为："+fastbootCommandTidevice);
+        log.sendStepLog(StepType.INFO, "开始执行fastboot ios====>", "");
 
-                // 启动进程
-                process = pb.start();
+        executeCommand(fastbootCommand);
+        JSONObject iosDeviceInfo = SibTool.getIosDeviceInfo(udidNow);
 
-                try (BufferedReader reader = new BufferedReader(new InputStreamReader(process.getInputStream()))) {
-                    String line;
-                    while ((line = reader.readLine()) != null) {
-                        // 记录输出到日志
-                        System.out.println(line);
+        if (iosDeviceInfo!=null){
+            JSONObject deviceDetail = iosDeviceInfo.getJSONObject("deviceDetail");
+            larkMessageSender.sendFeishuMsg(webhookUrl,"fastboot IOS 稳定性测试执行完成",BUNDLEID,runningMinutes,deviceDetail.getString("productVersion"),deviceDetail.getString("uniqueDeviceID"),"Apple",deviceDetail.getString("generationName"),"此次运行正常，未产生CRASH或OOM。");
+        }else {
+            larkMessageSender.sendFeishuMsg(webhookUrl,"fastboot IOS 稳定性测试执行完成",BUNDLEID,runningMinutes,"16.0.3",udidNow,"Apple","iPhone 11","此次运行正常，未产生CRASH或OOM。");
+        }
+        int wdaPort = SibTool.startWda(udidNow)[0];
+        startIOSDriver(udidNow,wdaPort);
+    }
+
+
+
+    public void executeCommand(String command) {
+        try {
+            // 执行命令并获取Process对象
+            Process process = Runtime.getRuntime().exec(new String[]{"bash", "-c", command});
+            // 分别获取命令的标准输出流和错误输出流
+            BufferedReader stdInput = new BufferedReader(new InputStreamReader(process.getInputStream()));
+            BufferedReader stdError = new BufferedReader(new InputStreamReader(process.getErrorStream()));
+
+            // 开启一个新的线程来读取标准输出流
+            Thread outputThread = new Thread(() -> {
+                String s;
+                try {
+                    while ((s = stdInput.readLine()) != null) {
+                        System.out.println(s);
                     }
-
-                    int exitCode = process.waitFor(); // 等待命令执行完成
-                    if (exitCode == 0) {
-
-                        System.out.println("执行完成");
-                    } else {
-                        System.out.println("执行失败");
-                    }
-
                 } catch (IOException e) {
                     e.printStackTrace();
                 }
+            });
+            outputThread.start();
 
-            } catch (IOException | InterruptedException e) {
-                e.printStackTrace();
-            }
+            // 开启一个新的线程来读取错误输出流
+            Thread errorThread = new Thread(() -> {
+                String s;
+                try {
+                    while ((s = stdError.readLine()) != null) {
+                        System.err.println(s);
+                    }
+                } catch (IOException e) {
+                    e.printStackTrace();
+                }
+            });
+            errorThread.start();
+
+            // 等待命令执行结束
+            process.waitFor();
+            System.out.println("fastboot ios稳定性测试执行完成");
+            // 关闭输入流
+            stdInput.close();
+            stdError.close();
+
+        } catch (IOException | InterruptedException e) {
+            e.printStackTrace();
         }
-
-
-
     }
 }
