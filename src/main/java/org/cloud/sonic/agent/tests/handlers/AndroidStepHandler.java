@@ -2715,7 +2715,6 @@ public class AndroidStepHandler {
             }
         }
         String logContent = stringBuilder.toString();
-        System.out.println("logContent=========>"+logContent);
         if(!logContent.isEmpty()){
             log.sendStepLog(StepType.ERROR, "crash及oom日志", logContent);
             larkMessageSender.sendFeishuMsg(webhookUrl,"fastboot Android稳定性测试执行完成",packageName,

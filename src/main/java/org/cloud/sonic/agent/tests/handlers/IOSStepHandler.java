@@ -85,6 +85,10 @@ public class IOSStepHandler {
     private int pocoPort = 0;
     private int targetPort = 0;
     private String targetPackage = "";
+    private static File sibBinary = new File("plugins" + File.separator + "sonic-ios-bridge");
+    private static String sib = sibBinary.getAbsolutePath();
+
+    private static String system = System.getProperty("os.name").toLowerCase();
 
     private static final int IOS_ELEMENT_TYPE = 1004;
     private static final int POCO_ELEMENT_TYPE = 1005;
@@ -1999,6 +2003,27 @@ public class IOSStepHandler {
     ) throws Exception {
         String udidNow = udId;
         FeishuBot larkMessageSender = new FeishuBot();
+
+
+        String productVersion = "16.0.3";
+        String generationName = "iPhone 11";
+        String statusInfo = "此次运行正常，未产生CRASH或OOM。";
+
+
+        // 前置操作把crash文件清除
+        // 1\crash文件储存地址
+        File iosCrashLogPath = new File("plugins" + File.separator + "iosCrashLog");
+        if(!iosCrashLogPath.exists()){
+            iosCrashLogPath.mkdirs();
+        }else{
+            // 拉取手机上的文件
+            pullIosCrashLog(iosCrashLogPath);
+            //  删除iosCrashLogPath下的文件
+            deleteFile(iosCrashLogPath);
+        }
+
+
+
         //关闭wda
         closeIOSDriver();
 
@@ -2011,18 +2036,64 @@ public class IOSStepHandler {
                             "   -only-testing:FastbotRunner/FastbotRunner/testFastbot ";
 
         String fastbootCommandTidevice = "tidevice   -u " + udidNow+  "  xctest -B pro.bingbon.trade.xctrunner -e BUNDLEID:"+BUNDLEID+ " -e duration:"+runningMinutes+ " -e throttle:"+throttleValue+"  --debug";
-        System.out.println("执行的fastboot ios 命令为："+fastbootCommandTidevice);
-        log.sendStepLog(StepType.INFO, "开始执行fastboot ios====>", "");
+
+
+        log.sendStepLog(StepType.INFO, "开始执行fastboot ios====>", "执行的fastboot ios 命令为："+fastbootCommandTidevice);
 
         executeCommand(fastbootCommand);
+
+        // 执行完成后拉取 crash文件
+        pullIosCrashLog(iosCrashLogPath);
+        List<String> targetFileNames = Arrays.asList("bingx", "bingbon", "bx");
+        List<String> list = checkFilesInDirectory(iosCrashLogPath, targetFileNames);
         JSONObject iosDeviceInfo = SibTool.getIosDeviceInfo(udidNow);
 
-        if (iosDeviceInfo!=null){
+//        if (list != null && !list.isEmpty()) {
+//            log.sendStepLog(StepType.ERROR, "fastboot ios 执行完成，发现crash文件：", list.toString());
+//        }
+
+        if (iosDeviceInfo != null) {
             JSONObject deviceDetail = iosDeviceInfo.getJSONObject("deviceDetail");
-            larkMessageSender.sendFeishuMsg(webhookUrl,"fastboot IOS 稳定性测试执行完成",BUNDLEID,runningMinutes,deviceDetail.getString("productVersion"),deviceDetail.getString("uniqueDeviceID"),"Apple",deviceDetail.getString("generationName"),"此次运行正常，未产生CRASH或OOM。");
-        }else {
-            larkMessageSender.sendFeishuMsg(webhookUrl,"fastboot IOS 稳定性测试执行完成",BUNDLEID,runningMinutes,"16.0.3",udidNow,"Apple","iPhone 11","此次运行正常，未产生CRASH或OOM。");
+            productVersion = deviceDetail.getString("productVersion");
+            generationName = deviceDetail.getString("generationName");
+
+            if (list != null && !list.isEmpty()) {
+                log.sendStepLog(StepType.ERROR, "fastboot ios 执行完成，发现crash文件：", list.toString());
+
+                statusInfo = "此次运行异常，已产生CRASH或OOM，详情见测试报告";
+            } else {
+                statusInfo = "此次运行正常，未产生CRASH或OOM。";
+            }
+
+            larkMessageSender.sendFeishuMsg(webhookUrl, "fastboot IOS 稳定性测试执行完成", BUNDLEID, runningMinutes,
+                    productVersion, udidNow, "Apple", generationName, statusInfo);
+        } else {
+            larkMessageSender.sendFeishuMsg(webhookUrl, "fastboot IOS 稳定性测试执行完成", BUNDLEID, runningMinutes,
+                    productVersion, udidNow, "Apple", generationName, statusInfo);
         }
+
+
+
+
+//        if (list !=null && !list.isEmpty()){
+//            log.sendStepLog(StepType.ERROR, "fastboot ios 执行完成，发现crash文件，详情见测试报告！", "");
+//            JSONObject iosDeviceInfo = SibTool.getIosDeviceInfo(udidNow);
+//            if (iosDeviceInfo!=null){
+//                JSONObject deviceDetail = iosDeviceInfo.getJSONObject("deviceDetail");
+//                larkMessageSender.sendFeishuMsg(webhookUrl,"fastboot IOS 稳定性测试执行完成",BUNDLEID,runningMinutes,deviceDetail.getString("productVersion"),deviceDetail.getString("uniqueDeviceID"),"Apple",deviceDetail.getString("generationName"),"此次运行异常，已产生CRASH或OOM，详情见测试报告");
+//            }
+//        }
+//
+//
+//
+//        JSONObject iosDeviceInfo = SibTool.getIosDeviceInfo(udidNow);
+//
+//        if (iosDeviceInfo!=null){
+//            JSONObject deviceDetail = iosDeviceInfo.getJSONObject("deviceDetail");
+//            larkMessageSender.sendFeishuMsg(webhookUrl,"fastboot IOS 稳定性测试执行完成",BUNDLEID,runningMinutes,deviceDetail.getString("productVersion"),deviceDetail.getString("uniqueDeviceID"),"Apple",deviceDetail.getString("generationName"),"此次运行正常，未产生CRASH或OOM。");
+//        }else {
+//            larkMessageSender.sendFeishuMsg(webhookUrl,"fastboot IOS 稳定性测试执行完成",BUNDLEID,runningMinutes,"16.0.3",udidNow,"Apple","iPhone 11","此次运行正常，未产生CRASH或OOM。");
+//        }
         int wdaPort = SibTool.startWda(udidNow)[0];
         startIOSDriver(udidNow,wdaPort);
     }
@@ -2073,5 +2144,64 @@ public class IOSStepHandler {
         } catch (IOException | InterruptedException e) {
             e.printStackTrace();
         }
+    }
+
+
+
+    public void pullIosCrashLog(File iosCrashLogPath){
+        String commandLine = "%s crash -k -p "+iosCrashLogPath.getAbsolutePath();
+        try {
+            if (system.contains("win")) {
+                Runtime.getRuntime().exec(new String[]{"cmd", "/c", String.format(commandLine, sib)});
+            } else if (system.contains("linux") || system.contains("mac")) {
+                Runtime.getRuntime().exec(new String[]{"sh", "-c", String.format(commandLine, sib)});
+            }
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+    }
+
+
+    public void deleteFile(File file) {
+        if (file.isFile()) {
+            file.delete();
+            return;
+        }
+        if (file.isDirectory()) {
+            File[] childFile = file.listFiles();
+            if (childFile == null || childFile.length == 0) {
+                file.delete();
+                return;
+            }
+            for (File f : childFile) {
+                deleteFile(f);
+            }
+            file.delete();
+        }
+    }
+
+
+    // 检查文件夹下是否含有某个关键字文件
+    private static List<String> checkFilesInDirectory(File dir, List<String> keywords) {
+        File[] files = dir.listFiles();
+        List<String> matchedFiles = new ArrayList<>();
+        if (files != null) {
+            for (File file : files) {
+                if (file.isFile() && containsKeywordIgnoreCase(file.getName(), keywords)) {
+                    System.out.println("Found matching file: " + file.getAbsolutePath());
+                    matchedFiles.add(file.getName());
+                }
+            }
+
+            return matchedFiles;
+        } else {
+           return null;
+        }
+
+    }
+
+    private static boolean containsKeywordIgnoreCase(String fileName, List<String> keywords) {
+        String lowerCaseName = fileName.toLowerCase();
+        return keywords.stream().anyMatch(keyword -> lowerCaseName.contains(keyword.toLowerCase()));
     }
 }
