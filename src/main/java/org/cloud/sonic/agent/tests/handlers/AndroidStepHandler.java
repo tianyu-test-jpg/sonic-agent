@@ -2675,7 +2675,6 @@ public class AndroidStepHandler {
                             int runningMinutes,
                             int throttleValue,
                             String verbosityLevel) throws Exception {
-
         FeishuBot larkMessageSender = new FeishuBot();
         closeAndroidDriver();
         String outputDirectory = "/sdcard/fastboot";
@@ -2690,33 +2689,36 @@ public class AndroidStepHandler {
         log.sendStepLog(StepType.INFO, "开始执行fastboot android====>", "");
         AndroidDeviceBridgeTool.executeCommand(iDevice, fastbootCommand);
 
+
+        List<String> commands = new ArrayList<>();
+        commands.add(" find "+  outputDirectory  +"  -type f | grep   -i  'crash.*\\.log$'");
+        commands.add(" find "+  outputDirectory  +"  -type f | grep   -i  'anr.*\\.log$'");
+        commands.add(" find "+  outputDirectory  +"  -type f | grep   -i  'oom.*\\.log$'");
+        StringBuilder stringBuilderLog = new StringBuilder();
+        for (String command : commands) {
+            String result = AndroidDeviceBridgeTool.executeCommand(iDevice, command);
+            if (!result.trim().isEmpty()) {
+                String[] fileNames = result.split("\n");
+                for (String fileName : fileNames) {
+                    String fileContent = AndroidDeviceBridgeTool.executeCommand(iDevice, "  cat " + fileName);
+                    log.sendStepLog(StepType.ERROR, "发现异常，执行命令为"+command, fileContent);
+                    stringBuilderLog.append(fileContent);
+                }
+            }
+        }
+
+
+
         int port = 0;
         log.sendStepLog(StepType.INFO, "启动androidDriver", "");
         port = AndroidDeviceBridgeTool.startUiaServer(iDevice);
         startAndroidDriver(iDevice, port);
 
-        String crashLogPath = AndroidDeviceBridgeTool.executeCommand(iDevice, "find /sdcard/fastboot  -type f | grep 'crash.*\\.log$'");
-        String oomLogPath = AndroidDeviceBridgeTool.executeCommand(iDevice, "find /sdcard/fastboot  -type f | grep 'oom.*\\.log$'  ");
+        
 
-        StringBuilder stringBuilder = new StringBuilder();
-        if (!crashLogPath.trim().isEmpty()){
-            String[] fileNames = crashLogPath.split("\n");
-            for (String fileName : fileNames) {
-                String fileContent = AndroidDeviceBridgeTool.executeCommand(iDevice, "  cat " + fileName);
-                stringBuilder.append(fileContent);
-            }
-        }
-
-        if (!oomLogPath.trim().isEmpty()){
-            String[] fileNames = oomLogPath.split("\n");
-            for (String fileName : fileNames) {
-                String fileContent = AndroidDeviceBridgeTool.executeCommand(iDevice, "  cat " + fileName);
-                stringBuilder.append(fileContent);
-            }
-        }
-        String logContent = stringBuilder.toString();
+        String logContent = stringBuilderLog.toString();
         if(!logContent.isEmpty()){
-            log.sendStepLog(StepType.ERROR, "crash及oom日志", logContent);
+//            log.sendStepLog(StepType.ERROR, "crash及oom日志", logContent);
             larkMessageSender.sendFeishuMsg(webhookUrl,"fastboot Android稳定性测试执行完成",packageName,
                     runningMinutes,
                     iDevice.getProperty(IDevice.PROP_BUILD_VERSION),
