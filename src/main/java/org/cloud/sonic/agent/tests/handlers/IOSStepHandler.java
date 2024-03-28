@@ -2044,7 +2044,7 @@ public class IOSStepHandler {
 
         // 执行完成后拉取 crash文件
         pullIosCrashLog(iosCrashLogPath);
-        List<String> targetFileNames = Arrays.asList("bingx", "bingbon", "bx");
+        List<String> targetFileNames = Arrays.asList("bingx","bx");
         List<String> list = checkFilesInDirectory(iosCrashLogPath, targetFileNames);
         JSONObject iosDeviceInfo = SibTool.getIosDeviceInfo(udidNow);
 

@@ -21,12 +21,8 @@ import com.alibaba.fastjson.JSON;
 import com.alibaba.fastjson.JSONArray;
 import com.alibaba.fastjson.JSONObject;
 import com.android.ddmlib.IDevice;
-import org.apache.commons.lang3.StringEscapeUtils;
-import com.google.gson.JsonArray;
-import com.google.gson.JsonObject;
 import org.cloud.sonic.agent.bridge.android.AndroidDeviceBridgeTool;
 import org.cloud.sonic.agent.bridge.android.AndroidDeviceThreadPool;
-import org.cloud.sonic.agent.bridge.ios.SibTool;
 import org.cloud.sonic.agent.common.enums.AndroidKey;
 import org.cloud.sonic.agent.common.enums.ConditionEnum;
 import org.cloud.sonic.agent.common.enums.SonicEnum;
@@ -74,10 +70,7 @@ import org.openqa.selenium.chrome.ChromeOptions;
 import org.springframework.util.CollectionUtils;
 
 import javax.imageio.stream.FileImageOutputStream;
-import java.io.BufferedReader;
 import java.io.File;
-import java.io.IOException;
-import java.io.InputStreamReader;
 import java.util.*;
 import java.util.concurrent.Future;
 
@@ -2670,7 +2663,7 @@ public class AndroidStepHandler {
         }
     }
 
-    public void runFastboot(String webhookUrl,
+    public void runFastboot(List<String> webhookUrls,
                             String packageName,
                             int runningMinutes,
                             int throttleValue,
@@ -2685,7 +2678,6 @@ public class AndroidStepHandler {
                 verbosityLevel+ " --output-directory  " +
                 outputDirectory +
                 " --bugreport" ;
-        System.out.println("执行的fastboot 命令为--->"+fastbootCommand);
         log.sendStepLog(StepType.INFO, "开始执行fastboot android====>", "");
         AndroidDeviceBridgeTool.executeCommand(iDevice, fastbootCommand);
 
@@ -2694,15 +2686,17 @@ public class AndroidStepHandler {
         commands.add(" find "+  outputDirectory  +"  -type f | grep   -i  'crash.*\\.log$'");
         commands.add(" find "+  outputDirectory  +"  -type f | grep   -i  'anr.*\\.log$'");
         commands.add(" find "+  outputDirectory  +"  -type f | grep   -i  'oom.*\\.log$'");
-        StringBuilder stringBuilderLog = new StringBuilder();
+//        StringBuilder stringBuilderLog = new StringBuilder();
+        Boolean isCrash = false;
         for (String command : commands) {
             String result = AndroidDeviceBridgeTool.executeCommand(iDevice, command);
             if (!result.trim().isEmpty()) {
+                isCrash = true;
                 String[] fileNames = result.split("\n");
                 for (String fileName : fileNames) {
                     String fileContent = AndroidDeviceBridgeTool.executeCommand(iDevice, "  cat " + fileName);
                     log.sendStepLog(StepType.ERROR, "发现异常，执行命令为"+command, fileContent);
-                    stringBuilderLog.append(fileContent);
+//                    stringBuilderLog.append(fileContent);
                 }
             }
         }
@@ -2714,26 +2708,20 @@ public class AndroidStepHandler {
         port = AndroidDeviceBridgeTool.startUiaServer(iDevice);
         startAndroidDriver(iDevice, port);
 
-        
 
-        String logContent = stringBuilderLog.toString();
-        if(!logContent.isEmpty()){
-//            log.sendStepLog(StepType.ERROR, "crash及oom日志", logContent);
-            larkMessageSender.sendFeishuMsg(webhookUrl,"fastboot Android稳定性测试执行完成",packageName,
-                    runningMinutes,
-                    iDevice.getProperty(IDevice.PROP_BUILD_VERSION),
-                    iDevice.getSerialNumber(),
-                    iDevice.getProperty(IDevice.PROP_DEVICE_MANUFACTURER),
-                    iDevice.getProperty(IDevice.PROP_DEVICE_MODEL),"此次运行异常，已产生CRASH或OOM，详情见测试报告");
-        }else {
-            larkMessageSender.sendFeishuMsg(webhookUrl,"fastboot Android稳定性测试执行完成",packageName,
-                    runningMinutes,
-                    iDevice.getProperty(IDevice.PROP_BUILD_VERSION),
-                    iDevice.getSerialNumber(),
-                    iDevice.getProperty(IDevice.PROP_DEVICE_MANUFACTURER),
-                    iDevice.getProperty(IDevice.PROP_DEVICE_MODEL),"此次运行正常，未产生CRASH或OOM。");
-        }
 
-    }
+//        String logContent = stringBuilderLog.toString();
+        String statusInfo = isCrash?
+                "此次运行异常，已产生CRASH或OOM" :
+                "此次运行正常，未产生CRASH或OOM";
+
+
+        larkMessageSender.sendFeishuMsg(webhookUrls,"fastboot Android稳定性测试执行完成",packageName,
+                runningMinutes,
+                iDevice.getProperty(IDevice.PROP_BUILD_VERSION),
+                iDevice.getSerialNumber(),
+                iDevice.getProperty(IDevice.PROP_DEVICE_MANUFACTURER),
+                iDevice.getProperty(IDevice.PROP_DEVICE_MODEL),statusInfo);}
+
 
 }
