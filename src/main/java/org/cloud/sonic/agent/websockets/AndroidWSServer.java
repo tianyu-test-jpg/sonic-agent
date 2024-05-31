@@ -162,6 +162,7 @@ public class AndroidWSServer implements IAndroidWSServer {
     @OnMessage
     public void onMessage(String message, Session session) {
         JSONObject msg = JSON.parseObject(message);
+        log.info("收到 androidwsserver", msg);
         log.info("{} send: {}", session.getUserProperties().get("id").toString(), msg);
         IDevice iDevice = udIdMap.get(session);
         switch (msg.getString("type")) {

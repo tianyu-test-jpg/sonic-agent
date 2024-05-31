@@ -1026,6 +1026,34 @@ public class SibTool implements ApplicationListener<ContextRefreshedEvent> {
         }
     }
 
+    public static String getAppVersion(String udId,String bundleId) {
+        String command = "ideviceinstaller -u " + udId + " -o json -l";
+        String appVersion = "default";
+        try {
+            Process process = Runtime.getRuntime().exec(command);
+            BufferedReader reader = new BufferedReader(new InputStreamReader(process.getInputStream()));
+            String line;
+            boolean foundApp = false;
+            while (!foundApp && (line = reader.readLine()) != null) {
+                String[] parts = line.split(", ");
+                if (parts.length >= 3 && parts[0].equals(bundleId)) {
+                    foundApp =true;
+                    appVersion = parts[1];
+                }
+            }
+            reader.close();
+            int exitCode = process.waitFor();
+            if (exitCode != 0) {
+                logger.error("ideviceinstaller command failed with exit code " + exitCode);
+            }
+        } catch (Exception e) {
+            e.printStackTrace();
+            logger.error("ideviceinstaller command failed with exception: " + e.getMessage());
+        }
+
+        return appVersion.strip();
+    }
+
     public static JSONObject getIosDeviceInfo(String udId)  {
         Process listenProcess = null;
         String commandLine = "%s devices listen -d";

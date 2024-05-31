@@ -45,7 +45,7 @@ public class AndroidTouchHandler {
     private static final Map<String, TouchMode> touchModeMap = new ConcurrentHashMap<>();
     private static final Map<String, int[]> sizeMap = new ConcurrentHashMap<>();
     // 默认的滑动操作完成时间，单位为毫秒
-    private static final int DEFAULT_SWIPE_DURATION = 500;
+    private static final int DEFAULT_SWIPE_DURATION = 300;
 
     public enum TouchMode {
         SONIC_APK,

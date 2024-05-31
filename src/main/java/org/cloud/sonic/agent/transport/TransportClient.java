@@ -300,6 +300,7 @@ public class TransportClient extends WebSocketClient {
                 case "hub" -> PHCTool.setPosition(jsonObject.getInteger("position"), jsonObject.getString("type"));
                 case "runStep" -> {
                     if (jsonObject.getInteger("pf") == PlatformType.ANDROID) {
+                        log.info("收到 runStep {}", jsonObject.toString());
                         runAndroidStep(jsonObject);
                     }
                     if (jsonObject.getInteger("pf") == PlatformType.IOS) {
@@ -308,11 +309,14 @@ public class TransportClient extends WebSocketClient {
                 }
                 case "suite" -> {
                     List<JSONObject> cases = jsonObject.getJSONArray("cases").toJavaList(JSONObject.class);
+                    log.info("收到 suite {}", jsonObject.toString());
+
                     TestNG tng = new TestNG();
                     List<XmlSuite> suiteList = new ArrayList<>();
                     XmlSuite xmlSuite = new XmlSuite();
                     //bug?
                     for (JSONObject dataInfo : cases) {
+                        log.info("收到 suite里的cases {}", dataInfo.toString());
                         XmlTest xmlTest = new XmlTest(xmlSuite);
                         Map<String, String> parameters = new HashMap<>();
                         parameters.put("dataInfo", dataInfo.toJSONString());

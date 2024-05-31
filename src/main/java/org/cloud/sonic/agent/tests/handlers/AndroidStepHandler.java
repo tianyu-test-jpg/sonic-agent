@@ -24,6 +24,7 @@ import com.android.ddmlib.IDevice;
 import org.cloud.sonic.agent.bridge.android.AndroidDeviceBridgeTool;
 import org.cloud.sonic.agent.bridge.android.AndroidDeviceThreadPool;
 import org.cloud.sonic.agent.common.enums.AndroidKey;
+import org.cloud.sonic.agent.common.enums.AppInfo;
 import org.cloud.sonic.agent.common.enums.ConditionEnum;
 import org.cloud.sonic.agent.common.enums.SonicEnum;
 import org.cloud.sonic.agent.common.interfaces.ErrorType;
@@ -439,11 +440,21 @@ public class AndroidStepHandler {
     }
 
     public void openApp(HandleContext handleContext, String appPackage) {
-        handleContext.setStepDes("打开应用");
+        handleContext.setStepDes(AppInfo.OPEN_APP.getKey());
         appPackage = TextHandler.replaceTrans(appPackage, globalParams);
-        handleContext.setDetail("App包名： " + appPackage);
+//        handleContext.setDetail("App包名： " + appPackage);
         try {
             String result = AndroidDeviceBridgeTool.activateApp(iDevice, appPackage);
+            String openAppVersion = AndroidDeviceBridgeTool.getOpenAppVersion(iDevice, appPackage);
+            if (openAppVersion == null) {
+                throw new Exception(openAppVersion);
+            }
+            JSONObject appDetailsMap = new JSONObject();
+            appDetailsMap.put(AppInfo.APP_Version.getKey(), openAppVersion.trim());
+            appDetailsMap.put(AppInfo.APP_PACKAGE.getKey(), appPackage);
+            appDetailsMap.put(AppInfo.UDID.getKey(), iDevice.getSerialNumber());
+            appDetailsMap.put(AppInfo.PLATFORM.getKey(), "1");
+            handleContext.setDetail(appDetailsMap.toString());
             if (result.contains("No activities found to run")) {
                 throw new Exception(result);
             }

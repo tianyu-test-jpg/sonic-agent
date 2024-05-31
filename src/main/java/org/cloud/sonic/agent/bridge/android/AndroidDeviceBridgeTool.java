@@ -420,6 +420,10 @@ public class AndroidDeviceBridgeTool implements ApplicationListener<ContextRefre
         return executeCommand(iDevice, String.format("monkey -p %s -c android.intent.category.LAUNCHER 1", bundleId));
     }
 
+    public static String getOpenAppVersion(IDevice iDevice, String bundleId){
+        return executeCommand(iDevice, String.format("dumpsys package %s | grep versionName | sed 's/.*versionName=\\(.*\\)/\\1/'", bundleId));
+    }
+
     /**
      * @param iDevice
      * @param key

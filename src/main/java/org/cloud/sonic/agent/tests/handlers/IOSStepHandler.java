@@ -22,6 +22,7 @@ import com.alibaba.fastjson.JSONArray;
 import com.alibaba.fastjson.JSONObject;
 import org.cloud.sonic.agent.bridge.ios.IOSDeviceThreadPool;
 import org.cloud.sonic.agent.bridge.ios.SibTool;
+import org.cloud.sonic.agent.common.enums.AppInfo;
 import org.cloud.sonic.agent.common.enums.ConditionEnum;
 import org.cloud.sonic.agent.common.enums.SonicEnum;
 import org.cloud.sonic.agent.common.interfaces.ErrorType;
@@ -63,6 +64,8 @@ import org.springframework.util.CollectionUtils;
 import javax.imageio.stream.FileImageOutputStream;
 import java.io.*;
 import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.*;
 import java.util.concurrent.Future;
 
@@ -380,11 +383,22 @@ public class IOSStepHandler {
     }
 
     public void openApp(HandleContext handleContext, String appPackage) {
-        handleContext.setStepDes("打开应用");
+//        handleContext.setStepDes("打开应用");
+        handleContext.setStepDes(AppInfo.OPEN_APP.getKey());
         appPackage = TextHandler.replaceTrans(appPackage, globalParams);
-        handleContext.setDetail("App包名： " + appPackage);
+//        handleContext.setDetail("App包名： " + appPackage);
         try {
             iosDriver.appActivate(appPackage);
+            List<String> appList = SibTool.getAppList(udId);
+            System.out.println(appList);
+            String appVersion = SibTool.getAppVersion(udId, appPackage);
+
+            JSONObject appDetailsMap = new JSONObject();
+            appDetailsMap.put(AppInfo.APP_Version.getKey(), appVersion);
+            appDetailsMap.put(AppInfo.APP_PACKAGE.getKey(), appPackage);
+            appDetailsMap.put(AppInfo.UDID.getKey(), udId);
+            appDetailsMap.put(AppInfo.PLATFORM.getKey(), "2");
+            handleContext.setDetail(appDetailsMap.toString());
             targetPackage = appPackage;
         } catch (Exception e) {
             handleContext.setE(e);
@@ -2015,11 +2029,13 @@ public class IOSStepHandler {
         File iosCrashLogPath = new File("plugins" + File.separator + "iosCrashLog");
         if(!iosCrashLogPath.exists()){
             iosCrashLogPath.mkdirs();
+            System.out.println("创建文件");
         }else{
             // 拉取手机上的文件
-            pullIosCrashLog(iosCrashLogPath);
+//            pullIosCrashLog(iosCrashLogPath);
             //  删除iosCrashLogPath下的文件
             deleteFile(iosCrashLogPath);
+            System.out.println("删除文件");
         }
 
 
@@ -2035,10 +2051,10 @@ public class IOSStepHandler {
                             "   -scheme FastbotRunner  -configuration Release  -destination 'platform=iOS,id=" +udidNow+"'"+
                             "   -only-testing:FastbotRunner/FastbotRunner/testFastbot ";
 
-        String fastbootCommandTidevice = "tidevice   -u " + udidNow+  "  xctest -B pro.bingbon.trade.xctrunner -e BUNDLEID:"+BUNDLEID+ " -e duration:"+runningMinutes+ " -e throttle:"+throttleValue+"  --debug";
+//        String fastbootCommand = "tidevice   -u " + udidNow+  "  xctest -B pro.bingbon.trade.xctrunner -e BUNDLEID:"+BUNDLEID+ " -e duration:"+runningMinutes+ " -e throttle:"+throttleValue+"  --debug";
 
 
-        log.sendStepLog(StepType.INFO, "开始执行fastboot ios====>", "执行的fastboot ios 命令为："+fastbootCommandTidevice);
+        log.sendStepLog(StepType.INFO, "开始执行fastboot ios====>", "执行的fastboot ios 命令为："+fastbootCommand);
 
         executeCommand(fastbootCommand);
 
@@ -2149,12 +2165,13 @@ public class IOSStepHandler {
 
 
     public void pullIosCrashLog(File iosCrashLogPath){
-        String commandLine = "%s crash -k -p "+iosCrashLogPath.getAbsolutePath();
+        String commandLine = "%s crash  -p "+iosCrashLogPath.getAbsolutePath();
         try {
             if (system.contains("win")) {
                 Runtime.getRuntime().exec(new String[]{"cmd", "/c", String.format(commandLine, sib)});
             } else if (system.contains("linux") || system.contains("mac")) {
                 Runtime.getRuntime().exec(new String[]{"sh", "-c", String.format(commandLine, sib)});
+                System.out.println("拉取文件完成，拉取命令"+commandLine);
             }
         } catch (Exception e) {
             e.printStackTrace();
@@ -2162,22 +2179,36 @@ public class IOSStepHandler {
     }
 
 
-    public void deleteFile(File file) {
-        if (file.isFile()) {
-            file.delete();
-            return;
-        }
-        if (file.isDirectory()) {
-            File[] childFile = file.listFiles();
-            if (childFile == null || childFile.length == 0) {
-                file.delete();
-                return;
+    public  void deleteFile(File folder) {
+        if (folder.isDirectory()) {
+            File[] files = folder.listFiles();
+            if (files != null) {
+                for (File file : files) {
+                    deleteFile(file);
+                }
             }
-            for (File f : childFile) {
-                deleteFile(f);
-            }
-            file.delete();
+            folder.delete();
+        } else {
+            folder.delete();
         }
+//        if (file.isFile()) {
+//            file.delete();
+//            return;
+//        }
+//        if (file.isDirectory()) {
+//            File[] childFile = file.listFiles();
+//            if (childFile == null || childFile.length == 0) {
+//                file.delete();
+//                System.out.println("删除完成");
+//                return;
+//            }
+//            for (File f : childFile) {
+//                System.out.println("删除完成2");
+//
+//                deleteFile(f);
+//            }
+//            file.delete();
+//        }
     }
 
 
